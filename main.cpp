@@ -13,6 +13,44 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Target/TargetMachine.h>
 
+void codegen(llvm::LLVMContext &ctx, llvm::Module &module);
+
+void optimize(llvm::Module &module);
+
+llvm::TargetMachine *create_target_machine();
+
+void print_asm(llvm::Module &module, llvm::TargetMachine *target_machine);
+
+void generate_obj(llvm::Module &module, llvm::TargetMachine *target_machine, const char *filename);
+
+int main() {
+    llvm::LLVMContext ctx;
+    llvm::Module module("module_1", ctx);
+
+    auto target_machine = create_target_machine();
+    if (!target_machine) {
+        return 1;
+    }
+
+    module.setDataLayout(target_machine->createDataLayout());
+    module.setTargetTriple(target_machine->getTargetTriple().str());
+
+    std::cerr << "== LLVM IR Codegen ==" << std::endl;
+    codegen(ctx, module);
+    module.dump();
+
+    std::cerr << "== LLVM IR Optimize ==" << std::endl;
+    optimize(module);
+    module.dump();
+
+    std::cerr << "== Target Assembly ==" << std::endl;
+    print_asm(module, target_machine);
+
+    std::cerr << "== Target Object ==" << std::endl;
+    generate_obj(module, target_machine, "hello.o");
+    return 0;
+}
+
 void codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
     llvm::FunctionType *fn_type = llvm::FunctionType::get(
             llvm::Type::getInt64Ty(ctx),
@@ -99,32 +137,4 @@ void generate_obj(llvm::Module &module, llvm::TargetMachine *target_machine, con
     llvm::raw_fd_ostream dest(filename, err);
     target_output(module, target_machine, dest, llvm::CGFT_ObjectFile);
     std::cerr << " => " << filename << std::endl;
-}
-
-int main() {
-    llvm::LLVMContext ctx;
-    llvm::Module module("module_1", ctx);
-
-    auto target_machine = create_target_machine();
-    if (!target_machine) {
-        return 1;
-    }
-
-    module.setDataLayout(target_machine->createDataLayout());
-    module.setTargetTriple(target_machine->getTargetTriple().str());
-
-    std::cerr << "== LLVM IR Codegen ==" << std::endl;
-    codegen(ctx, module);
-    module.dump();
-
-    std::cerr << "== LLVM IR Optimize ==" << std::endl;
-    optimize(module);
-    module.dump();
-
-    std::cerr << "== Target Assembly ==" << std::endl;
-    print_asm(module, target_machine);
-
-    std::cerr << "== Target Object ==" << std::endl;
-    generate_obj(module, target_machine, "hello.o");
-    return 0;
 }
