@@ -4,8 +4,9 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Passes/PassBuilder.h>
 
-llvm::Value *codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
+void codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
     llvm::FunctionType *fn_type = llvm::FunctionType::get(
             llvm::Type::getInt64Ty(ctx),
             {llvm::Type::getInt64Ty(ctx), llvm::Type::getInt64Ty(ctx)},
@@ -28,14 +29,40 @@ llvm::Value *codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
     builder.CreateRet(ret);
 
     llvm::verifyFunction(*fn);
-    return fn;
+}
+
+void optimize(llvm::Module &module) {
+    llvm::PassBuilder pass_builder;
+    llvm::LoopAnalysisManager loop_analysis_manager;
+    llvm::FunctionAnalysisManager function_analysis_manager;
+    llvm::CGSCCAnalysisManager cgscc_analysis_manager;
+    llvm::ModuleAnalysisManager module_analysis_manager;
+    pass_builder.registerModuleAnalyses(module_analysis_manager);
+    pass_builder.registerCGSCCAnalyses(cgscc_analysis_manager);
+    pass_builder.registerFunctionAnalyses(function_analysis_manager);
+    pass_builder.registerLoopAnalyses(loop_analysis_manager);
+    pass_builder.crossRegisterProxies(
+            loop_analysis_manager,
+            function_analysis_manager,
+            cgscc_analysis_manager,
+            module_analysis_manager);
+
+    llvm::ModulePassManager module_pass_manager =
+            pass_builder.buildPerModuleDefaultPipeline(llvm::PassBuilder::OptimizationLevel::O3);
+    module_pass_manager.run(module, module_analysis_manager);
 }
 
 int main() {
     llvm::LLVMContext ctx;
     llvm::Module module("jit", ctx);
+
     std::cout << "== Codegen ==" << std::endl;
-    [[maybe_unused]] auto code = codegen(ctx, module);
+    codegen(ctx, module);
     module.dump();
+
+    std::cout << "== Optimize ==" << std::endl;
+    optimize(module);
+    module.dump();
+
     return 0;
 }

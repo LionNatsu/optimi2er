@@ -18,7 +18,7 @@ target_include_directories(optimi2er PRIVATE ${LLVM_INCLUDE_DIRS})
 if(${LLVM_SHARED})
     set(llvm_libs "LLVM")
 else()
-    llvm_map_components_to_libnames(llvm_libs core)
+    llvm_map_components_to_libnames(llvm_libs core passes)
 endif()
 
 target_link_libraries(optimi2er ${llvm_libs})
