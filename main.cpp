@@ -54,7 +54,7 @@ int main() {
 void codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
     llvm::FunctionType *fn_type = llvm::FunctionType::get(
             llvm::Type::getInt64Ty(ctx),
-            {llvm::Type::getInt64Ty(ctx), llvm::Type::getInt64Ty(ctx)},
+            {llvm::IntegerType::get(ctx, 13579), llvm::Type::getInt64Ty(ctx)},
             false);
     llvm::Function *fn = llvm::Function::Create(fn_type, llvm::Function::ExternalLinkage, "my_function", module);
 
@@ -62,15 +62,15 @@ void codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
 
     llvm::IRBuilder<> builder(ctx);
     builder.SetInsertPoint(block);
-    auto v1 = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 42);
-    auto v2 = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 100);
+    auto v1 = llvm::ConstantInt::get(llvm::IntegerType::get(ctx, 13579), 42);
+    auto v2 = llvm::ConstantInt::get(llvm::IntegerType::get(ctx, 13579), 100);
     auto v3 = builder.CreateMul(v1, v2);
     auto v4 = fn->getArg(0);
     auto v5 = builder.CreateAdd(v4, v4);
     auto v6 = builder.CreateAdd(v5, v5);
     auto v7 = fn->getArg(1);
-    auto v8 = builder.CreateMul(v6, v7);
-    auto ret = builder.CreateMul(v3, v8);
+    auto v8 = builder.CreateMul(v6, v3);
+    auto ret = builder.CreateMul(v7, builder.CreateIntCast(v8, llvm::Type::getInt64Ty(ctx), false));
     builder.CreateRet(ret);
     llvm::verifyFunction(*fn);
 }
