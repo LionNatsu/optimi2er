@@ -15,10 +15,19 @@ add_definitions(${LLVM_DEFINITIONS_LIST})
 add_executable(optimi2er main.cpp)
 target_include_directories(optimi2er PRIVATE ${LLVM_INCLUDE_DIRS})
 
-if(${LLVM_SHARED})
+if (${LLVM_SHARED})
     set(llvm_libs "LLVM")
-else()
-    llvm_map_components_to_libnames(llvm_libs core passes)
-endif()
+else ()
+    llvm_map_components_to_libnames(llvm_libs
+            core
+            passes
+            support
+            target
+
+            x86asmparser
+            x86codegen
+            x86desc
+            x86info)
+endif ()
 
 target_link_libraries(optimi2er ${llvm_libs})

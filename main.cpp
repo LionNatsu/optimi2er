@@ -4,7 +4,14 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/Host.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/TargetRegistry.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetOptions.h>
+#include <llvm/Target/TargetMachine.h>
 
 void codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
     llvm::FunctionType *fn_type = llvm::FunctionType::get(
@@ -27,7 +34,6 @@ void codegen(llvm::LLVMContext &ctx, llvm::Module &module) {
     auto v8 = builder.CreateMul(v6, v7);
     auto ret = builder.CreateMul(v3, v8);
     builder.CreateRet(ret);
-
     llvm::verifyFunction(*fn);
 }
 
@@ -52,17 +58,73 @@ void optimize(llvm::Module &module) {
     module_pass_manager.run(module, module_analysis_manager);
 }
 
+llvm::TargetMachine *create_target_machine() {
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
+
+    std::string error;
+    std::string target_triple = llvm::sys::getDefaultTargetTriple();
+    auto target = llvm::TargetRegistry::lookupTarget(target_triple, error);
+
+    if (!target) {
+        std::cerr << error << std::endl;
+        return nullptr;
+    }
+
+    return target->createTargetMachine(
+            target_triple,
+            "generic",
+            "",
+            llvm::TargetOptions{},
+            llvm::Optional<llvm::Reloc::Model>{});
+
+}
+
+void target_output(llvm::Module &module, llvm::TargetMachine *target_machine, llvm::raw_pwrite_stream &s,
+                   llvm::CodeGenFileType ft) {
+    llvm::legacy::PassManager pass_manager;
+    target_machine->addPassesToEmitFile(pass_manager, s, nullptr, ft);
+    pass_manager.run(module);
+}
+
+void print_asm(llvm::Module &module, llvm::TargetMachine *target_machine) {
+    target_output(module, target_machine, llvm::errs(), llvm::CGFT_AssemblyFile);
+}
+
+void generate_obj(llvm::Module &module, llvm::TargetMachine *target_machine, const char *filename) {
+    std::error_code err;
+    llvm::raw_fd_ostream dest(filename, err);
+    target_output(module, target_machine, dest, llvm::CGFT_ObjectFile);
+    std::cerr << " => " << filename << std::endl;
+}
+
 int main() {
     llvm::LLVMContext ctx;
-    llvm::Module module("jit", ctx);
+    llvm::Module module("module_1", ctx);
 
-    std::cout << "== Codegen ==" << std::endl;
+    auto target_machine = create_target_machine();
+    if (!target_machine) {
+        return 1;
+    }
+
+    module.setDataLayout(target_machine->createDataLayout());
+    module.setTargetTriple(target_machine->getTargetTriple().str());
+
+    std::cerr << "== LLVM IR Codegen ==" << std::endl;
     codegen(ctx, module);
     module.dump();
 
-    std::cout << "== Optimize ==" << std::endl;
+    std::cerr << "== LLVM IR Optimize ==" << std::endl;
     optimize(module);
     module.dump();
 
+    std::cerr << "== Target Assembly ==" << std::endl;
+    print_asm(module, target_machine);
+
+    std::cerr << "== Target Object ==" << std::endl;
+    generate_obj(module, target_machine, "hello.o");
     return 0;
 }
