@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/LLVMContext.h>
@@ -6,11 +7,9 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/Host.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
-#include <llvm/Target/TargetOptions.h>
 #include <llvm/Target/TargetMachine.h>
 
 void codegen(llvm::LLVMContext &ctx, llvm::Module &module);
@@ -37,11 +36,11 @@ int main() {
 
     std::cerr << "== LLVM IR Codegen ==" << std::endl;
     codegen(ctx, module);
-    module.dump();
+    module.print(llvm::errs(), nullptr);
 
     std::cerr << "== LLVM IR Optimize ==" << std::endl;
     optimize(module);
-    module.dump();
+    module.print(llvm::errs(), nullptr);
 
     std::cerr << "== Target Assembly ==" << std::endl;
     print_asm(module, target_machine);
@@ -92,7 +91,7 @@ void optimize(llvm::Module &module) {
             module_analysis_manager);
 
     llvm::ModulePassManager module_pass_manager =
-            pass_builder.buildPerModuleDefaultPipeline(llvm::PassBuilder::OptimizationLevel::O3);
+            pass_builder.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
     module_pass_manager.run(module, module_analysis_manager);
 }
 
@@ -112,12 +111,7 @@ llvm::TargetMachine *create_target_machine() {
         return nullptr;
     }
 
-    return target->createTargetMachine(
-            target_triple,
-            "generic",
-            "",
-            llvm::TargetOptions{},
-            llvm::Optional<llvm::Reloc::Model>{});
+    return target->createTargetMachine(target_triple, "generic", "", {}, {});
 
 }
 
